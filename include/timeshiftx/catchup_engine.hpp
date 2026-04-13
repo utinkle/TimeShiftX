@@ -2,10 +2,10 @@
 
 #include <string>
 
-#include "chronosstream/core/errors.hpp"
-#include "chronosstream/core/types.hpp"
+#include "timeshiftx/errors.hpp"
+#include "timeshiftx/types.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 回看 URL 引擎：统一处理 M3U 模板回看与 Xtream Codes 回看拼接。
 class CatchupEngine {
@@ -30,4 +30,4 @@ private:
     static std::string sanitizeUrl(const std::string& raw_url);
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

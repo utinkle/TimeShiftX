@@ -1,17 +1,17 @@
-#include "chronosstream/parser/m3u_parser.hpp"
+#include "timeshiftx/m3u_parser.hpp"
 
 #include <cctype>
 #include <sstream>
 
-#include "chronosstream/net/http_client.hpp"
+#include "timeshiftx/http_client.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 Error M3UParser::parse(const std::string& raw_data) {
     channels_.clear();
 
     if (raw_data.empty()) {
-        return {ErrorCode::ERR_PARSE_M3U_FAILED, "M3U 文本为空"};
+        return {ErrorCode::ERR_PARSE_M3U_FAILED, "M3U text is empty"};
     }
 
     std::istringstream iss(raw_data);
@@ -27,17 +27,17 @@ Error M3UParser::parse(const std::string& raw_data) {
             continue;
         }
 
-        // 忽略 M3U 头信息。
+        // Ignore M3U header information.
         if (line.rfind("#EXTM3U", 0) == 0) {
             continue;
         }
 
-        // 处理频道描述行：抽取属性与展示名称。
+        // Process channel description line: extract attributes and display name.
         if (line.rfind("#EXTINF:", 0) == 0) {
             pending_channel = parseExtInfLine(line);
             pending_channel.source_type = Channel::SourceType::M3U;
 
-            // 如果 #EXTINF 未定义，则继承最近的 EXTVLCOPT。
+            // If #EXTINF is not defined, inherit the latest EXTVLCOPT.
             if (pending_channel.user_agent.empty()) pending_channel.user_agent = pending_user_agent;
             if (pending_channel.referer.empty()) pending_channel.referer = pending_referer;
 
@@ -45,7 +45,7 @@ Error M3UParser::parse(const std::string& raw_data) {
             continue;
         }
 
-        // 兼容 VLC 头字段写法（作用于“下一个频道”）。
+        // Compatible with VLC header field writing (applies to "next channel").
         if (line.rfind("#EXTVLCOPT:", 0) == 0) {
             const std::string opt = line.substr(std::string("#EXTVLCOPT:").size());
             const std::size_t eq = opt.find('=');
@@ -58,16 +58,16 @@ Error M3UParser::parse(const std::string& raw_data) {
             continue;
         }
 
-        // 忽略其它注释行。
+        // Ignore other comment lines.
         if (!line.empty() && line[0] == '#') {
             continue;
         }
 
-        // 遇到 URL 行：与上一个 #EXTINF 配对形成完整频道。
+        // Encounter URL line: pair with previous #EXTINF to form complete channel.
         if (has_pending_extinf) {
             pending_channel.live_url = line;
 
-            // 若 tvg-id 缺失，则降级使用 tvg-name 作为 EPG 匹配入口。
+            // If tvg-id is missing, downgrade to use tvg-name as EPG matching entry.
             if (pending_channel.epg_match_id.empty()) {
                 pending_channel.epg_match_id = pending_channel.name;
             }
@@ -76,17 +76,17 @@ Error M3UParser::parse(const std::string& raw_data) {
             channels_.push_back(pending_channel);
             has_pending_extinf = false;
 
-            // 单次消费，避免泄露到后续无关频道。
+            // Single consumption to avoid leakage to subsequent unrelated channels.
             pending_user_agent.clear();
             pending_referer.clear();
         }
     }
 
     if (channels_.empty()) {
-        return {ErrorCode::ERR_PARSE_M3U_FAILED, "未解析出有效频道"};
+        return {ErrorCode::ERR_PARSE_M3U_FAILED, "No valid channels parsed"};
     }
 
-    return {ErrorCode::OK, "M3U 解析成功"};
+    return {ErrorCode::OK, "M3U parsing successful"};
 }
 
 Error M3UParser::parseFromUrl(const std::string& url, long timeout_seconds) {
@@ -105,13 +105,13 @@ std::vector<Channel> M3UParser::getChannels() const {
 Channel M3UParser::parseExtInfLine(const std::string& extinf_line) {
     Channel ch;
 
-    // 频道显示名称位于第一个逗号之后。
+    // Channel display name is after the first comma.
     const std::size_t comma_pos = extinf_line.find(',');
     if (comma_pos != std::string::npos && comma_pos + 1 < extinf_line.size()) {
         ch.name = trim(extinf_line.substr(comma_pos + 1));
     }
 
-    // 解析 M3U 常见扩展属性。
+    // Parse common M3U extended attributes.
     const std::string tvg_id = extractQuotedAttr(extinf_line, "tvg-id");
     const std::string tvg_name = extractQuotedAttr(extinf_line, "tvg-name");
 
@@ -124,19 +124,19 @@ Channel M3UParser::parseExtInfLine(const std::string& extinf_line) {
     ch.referer = extractQuotedAttr(extinf_line, "http-referrer");
     if (ch.referer.empty()) ch.referer = extractQuotedAttr(extinf_line, "http-referer");
 
-    // EPG 匹配优先 tvg-id；缺失时回退 tvg-name；再缺失回退频道名。
+    // EPG matching prioritizes tvg-id; fallback to tvg-name if missing; fallback to channel name if still missing.
     if (!tvg_id.empty()) {
         ch.epg_match_id = tvg_id;
     } else if (!tvg_name.empty()) {
         ch.epg_match_id = tvg_name;
     }
 
-    // 频道名优先级：显示名 > tvg-name。
+    // Channel name priority: display name > tvg-name.
     if (ch.name.empty() && !tvg_name.empty()) {
         ch.name = tvg_name;
     }
 
-    // 简化规则：只要存在 catchup 或 catchup-source，即视为可回看。
+    // Simplified rule: as long as catchup or catchup-source exists, it is considered catchup-capable.
     ch.supports_catchup = !ch.catchup_type.empty() || !ch.catchup_template.empty();
 
     return ch;
@@ -187,4 +187,4 @@ std::string M3UParser::trim(const std::string& input) {
     return input.substr(left, right - left + 1);
 }
 
-} // namespace chronosstream
+} // namespace timeshiftx

@@ -3,7 +3,7 @@
 #include <ctime>
 #include <string>
 
-namespace chronosstream {
+namespace timeshiftx {
 namespace time_utils {
 
 // 将 time_t（UTC）格式化为可读字符串，默认格式：YYYY-MM-DD HH:MM:SS。
@@ -13,4 +13,4 @@ std::string formatUtc(std::time_t ts, const std::string& fmt = "%Y-%m-%d %H:%M:%
 bool isProgrammeEnded(std::time_t programme_end_time, std::time_t now_utc);
 
 } // namespace time_utils
-} // namespace chronosstream
+} // namespace timeshiftx

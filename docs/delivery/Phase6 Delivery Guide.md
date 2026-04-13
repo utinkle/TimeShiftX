@@ -52,7 +52,7 @@
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/bin/chronosstream_demo
+./build/bin/timeshiftx_demo
 ```
 
 ## 4. 性能压测入口

@@ -3,10 +3,10 @@
 #include <string>
 #include <vector>
 
-#include "chronosstream/core/errors.hpp"
-#include "chronosstream/core/types.hpp"
+#include "timeshiftx/errors.hpp"
+#include "timeshiftx/types.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 解析策略接口：M3U/XC 等不同来源需实现统一接口，保证上层无感切换。
 class ISourceParser {
@@ -21,4 +21,4 @@ public:
     virtual std::vector<Channel> getChannels() const = 0;
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

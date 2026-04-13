@@ -7,10 +7,10 @@
 #include <unordered_set>
 #include <vector>
 
-#include "chronosstream/core/errors.hpp"
-#include "chronosstream/core/types.hpp"
+#include "timeshiftx/errors.hpp"
+#include "timeshiftx/types.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // EPG 管理器：负责 XMLTV 解析、时间轴索引与严格匹配。
 class EPGManager {
@@ -59,4 +59,4 @@ private:
     std::unordered_set<std::string> filter_channel_ids_;
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

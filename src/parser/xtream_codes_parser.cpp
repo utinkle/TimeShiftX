@@ -1,27 +1,27 @@
-#include "chronosstream/parser/xtream_codes_parser.hpp"
+#include "timeshiftx/xtream_codes_parser.hpp"
+#include "timeshiftx/http_client.hpp"
 
 #include <sstream>
 
-#include "chronosstream/net/http_client.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 Error XtreamCodesParser::parse(const std::string& raw_data) {
     channels_.clear();
 
     if (raw_data.empty()) {
-        return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, "Xtream JSON 为空"};
+        return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, "Xtream JSON is empty"};
     }
 
     nlohmann::json root;
     try {
         root = nlohmann::json::parse(raw_data);
     } catch (const std::exception& ex) {
-        return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, std::string("Xtream JSON 解析失败: ") + ex.what()};
+        return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, std::string("Xtream JSON parsing failed: ") + ex.what()};
     }
 
     if (!root.is_array()) {
-        return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, "Xtream get_live_streams 响应不是数组"};
+        return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, "Xtream get_live_streams response is not an array"};
     }
 
     std::size_t invalid_count = 0;
@@ -43,12 +43,12 @@ Error XtreamCodesParser::parse(const std::string& raw_data) {
 
     if (channels_.empty()) {
         return {ErrorCode::ERR_PARSE_XC_JSON_FAILED,
-                "Xtream 解析后无有效频道（可能字段缺失或格式错误），无效条目数: " + std::to_string(invalid_count)};
+                "No valid channels after Xtream parsing (possible missing fields or format errors), invalid entries: " + std::to_string(invalid_count)};
     }
 
-    std::string msg = "Xtream 解析成功，有效频道: " + std::to_string(channels_.size());
+    std::string msg = "Xtream parsing successful, valid channels: " + std::to_string(channels_.size());
     if (invalid_count > 0) {
-        msg += "，跳过无效条目: " + std::to_string(invalid_count);
+        msg += ", skipped invalid entries: " + std::to_string(invalid_count);
     }
 
     return {ErrorCode::OK, msg};
@@ -59,7 +59,7 @@ Error XtreamCodesParser::parseFromApi(const std::string& server_url,
                                       const std::string& password,
                                       long timeout_seconds) {
     if (server_url.empty() || username.empty() || password.empty()) {
-        return {ErrorCode::ERR_INVALID_ARGUMENT, "Xtream 鉴权参数为空"};
+        return {ErrorCode::ERR_INVALID_ARGUMENT, "Xtream authentication parameters are empty"};
     }
 
     const std::string url = server_url +
@@ -104,7 +104,7 @@ bool XtreamCodesParser::mapStreamToChannel(const nlohmann::json& stream,
     out.xc_stream_id = getStringField(stream, "stream_id");
     out.name = getStringField(stream, "name");
     if (out.xc_stream_id.empty() || out.name.empty()) {
-        err_msg = "stream_id 或 name 缺失";
+        err_msg = "stream_id or name missing";
         return false;
     }
 
@@ -134,4 +134,4 @@ bool XtreamCodesParser::mapStreamToChannel(const nlohmann::json& stream,
     return true;
 }
 
-} // namespace chronosstream
+} // namespace timeshiftx

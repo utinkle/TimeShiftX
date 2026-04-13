@@ -3,7 +3,7 @@
 #include <sstream>
 #include <string>
 
-#include "chronosstream/epg/epg_manager.hpp"
+#include "timeshiftx/epg_manager.hpp"
 
 int main() {
     // 6.3 边界1：时区换算 +0800 -> UTC 日期命中。
@@ -17,7 +17,7 @@ int main() {
 </tv>
 )XML";
 
-    chronosstream::EPGManager epg_tz;
+    timeshiftx::EPGManager epg_tz;
     if (!epg_tz.loadXMLTV(xml_tz).ok()) {
         return EXIT_FAILURE;
     }
@@ -54,7 +54,7 @@ int main() {
     }
     oss << "</tv>\n";
 
-    chronosstream::EPGManager epg_big;
+    timeshiftx::EPGManager epg_big;
     epg_big.setChannelFilter({"keep"});
     if (!epg_big.loadXMLTV(oss.str()).ok()) {
         return EXIT_FAILURE;

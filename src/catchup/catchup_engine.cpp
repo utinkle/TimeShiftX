@@ -1,4 +1,5 @@
-#include "chronosstream/catchup/catchup_engine.hpp"
+#include "timeshiftx/catchup_engine.hpp"
+#include "timeshiftx/http_client.hpp"
 
 #include <algorithm>
 #include <ctime>
@@ -6,9 +7,7 @@
 #include <regex>
 #include <sstream>
 
-#include "chronosstream/net/http_client.hpp"
-
-namespace chronosstream {
+namespace timeshiftx {
 
 namespace {
 
@@ -38,12 +37,12 @@ std::string CatchupEngine::buildUrl(const Channel& channel, const Programme& tar
         return channel.live_url;
     }
 
-    // 4.4: 基础边界校验（非法时间段直接回退直播）。
+    // 4.4: Basic boundary check (invalid time period directly falls back to live).
     if (target_prog.start_time <= 0 || target_prog.end_time <= 0 || target_prog.end_time <= target_prog.start_time) {
         return channel.live_url;
     }
 
-    // 4.4: 超出回看窗口时直接回退（若 catchup_days 未设置则不做窗口裁剪）。
+    // 4.4: Directly fall back when exceeding catchup window (if catchup_days is not set, no window clipping).
     if (channel.catchup_days > 0) {
         const std::time_t now = std::time(nullptr);
         const std::time_t oldest = now - static_cast<std::time_t>(channel.catchup_days) * 24 * 60 * 60;
@@ -67,7 +66,7 @@ std::string CatchupEngine::buildUrl(const Channel& channel, const Programme& tar
 
 Error CatchupEngine::probeAvailability(const std::string& url, long timeout_seconds, int max_retries) {
     if (url.empty()) {
-        return {ErrorCode::ERR_INVALID_ARGUMENT, "回看 URL 为空"};
+        return {ErrorCode::ERR_INVALID_ARGUMENT, "Catchup URL is empty"};
     }
 
     const Error rc = HttpClient::head(url, timeout_seconds, max_retries);
@@ -75,12 +74,12 @@ Error CatchupEngine::probeAvailability(const std::string& url, long timeout_seco
         return rc;
     }
 
-    // 5.3: 对外暴露更语义化错误码，便于 UI 提示。
+    // 5.3: Expose more semantic error codes externally for UI prompts.
     if (rc.code == ErrorCode::ERR_CATCHUP_EXPIRED) {
-        return {ErrorCode::ERR_CATCHUP_EXPIRED, "回看资源已过期或被清理"};
+        return {ErrorCode::ERR_CATCHUP_EXPIRED, "Catchup resource has expired or been cleaned up"};
     }
 
-    return {ErrorCode::ERR_CATCHUP_UNAVAILABLE, "回看地址不可用: " + rc.message};
+    return {ErrorCode::ERR_CATCHUP_UNAVAILABLE, "Catchup address unavailable: " + rc.message};
 }
 
 std::string CatchupEngine::buildM3UCatchup(const Channel& channel, const Programme& prog) {
@@ -103,7 +102,7 @@ std::string CatchupEngine::buildM3UCatchup(const Channel& channel, const Program
     const std::string begin_unix = std::to_string(static_cast<long long>(prog.start_time));
     const std::string end_unix = std::to_string(static_cast<long long>(prog.end_time));
 
-    // 默认模板为空时，提供业内常见兜底规则。
+    // When default template is empty, provide common fallback rules in the industry.
     std::string tpl = channel.catchup_template;
     if (tpl.empty()) {
         if (channel.catchup_type == "shift") tpl = "?utc=${(b)}&lutc=${(e)}";
@@ -120,7 +119,7 @@ std::string CatchupEngine::buildM3UCatchup(const Channel& channel, const Program
     if (type.empty()) type = "append";
 
     if (type == "flussonic") {
-        // flussonic: 在最后一个扩展名前插入片段，如 index.m3u8 -> index-<b>-<duration>.m3u8
+        // flussonic: Insert segment before the last extension, e.g., index.m3u8 -> index-<b>-<duration>.m3u8
         const std::size_t dot = channel.live_url.rfind('.');
         if (dot != std::string::npos) {
             return sanitizeUrl(channel.live_url.substr(0, dot) + tpl + channel.live_url.substr(dot));
@@ -129,18 +128,18 @@ std::string CatchupEngine::buildM3UCatchup(const Channel& channel, const Program
     }
 
     if (type == "shift") {
-        // shift: 常见 ?utc=<begin>&lutc=<end>
+        // shift: Common ?utc=<begin>&lutc=<end>
         if (tpl.rfind("http://", 0) == 0 || tpl.rfind("https://", 0) == 0) return sanitizeUrl(tpl);
         return sanitizeUrl(channel.live_url + tpl);
     }
 
-    // append（以及未知类型默认回退到 append）
+    // append (and unknown types default to append)
     if (tpl.rfind("http://", 0) == 0 || tpl.rfind("https://", 0) == 0) return sanitizeUrl(tpl);
     return sanitizeUrl(channel.live_url + tpl);
 }
 
 std::string CatchupEngine::buildXCCatchup(const Channel& channel, const Programme& prog, const ServerCredentials& creds) {
-    // 4.2: 参数缺失回退到直播地址。
+    // 4.2: Missing parameters fall back to live address.
     if (creds.server_url.empty() || creds.username.empty() || creds.password.empty() || channel.xc_stream_id.empty()) {
         return {};
     }
@@ -150,7 +149,7 @@ std::string CatchupEngine::buildXCCatchup(const Channel& channel, const Programm
         duration_minutes = 1;
     }
 
-    // 4.4: 时长上限保护，避免异常节目单导致超长请求。
+    // 4.4: Duration upper limit protection to avoid abnormally long requests from program schedules.
     const long max_minutes = (channel.catchup_days > 0) ? static_cast<long>(channel.catchup_days) * 24L * 60L : 7L * 24L * 60L;
     if (duration_minutes > max_minutes) {
         duration_minutes = max_minutes;
@@ -188,19 +187,19 @@ std::string CatchupEngine::formatTimeWithTemplate(std::time_t ts, const std::str
 }
 
 std::string CatchupEngine::sanitizeUrl(const std::string& raw_url) {
-    // 4.3: 轻量 URL 清洗。
+    // 4.3: Lightweight URL sanitization.
     std::string s = raw_url;
 
-    // 空白字符统一编码（最常见非法字符）。
+    // Encode whitespace uniformly (most common illegal characters).
     s = replaceAll(s, " ", "%20");
 
-    // 清理重复分隔符。
+    // Clean up duplicate separators.
     while (s.find("??") != std::string::npos) s = replaceAll(s, "??", "?");
     while (s.find("&&") != std::string::npos) s = replaceAll(s, "&&", "&");
     s = replaceAll(s, "?&", "?");
     s = replaceAll(s, "&?", "&");
 
-    // 移除尾部无效分隔符。
+    // Remove trailing invalid separators.
     while (!s.empty() && (s.back() == '?' || s.back() == '&')) {
         s.pop_back();
     }
@@ -208,4 +207,4 @@ std::string CatchupEngine::sanitizeUrl(const std::string& raw_url) {
     return s;
 }
 
-} // namespace chronosstream
+} // namespace timeshiftx

@@ -1,7 +1,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "chronosstream/parser/m3u_parser.hpp"
+#include "timeshiftx/m3u_parser.hpp"
 
 TEST(M3UParserTest, ParseWithMixedAttributeQuotes) {
     const std::string sample =
@@ -11,7 +11,7 @@ TEST(M3UParserTest, ParseWithMixedAttributeQuotes) {
         "#EXTINF:-1 tvg-id='cctv1' tvg-name=CN1 group-title=\"央视频道\" http-user-agent='Inline-UA' catchup='append' catchup-source=?playseek=${(b)yyyyMMddHHmmss}-${(e)yyyyMMddHHmmss},CCTV-1\n"
         "http://demo/live/cctv1.m3u8\n";
 
-    chronosstream::M3UParser parser;
+    timeshiftx::M3UParser parser;
     const auto rc = parser.parse(sample);
     ASSERT_TRUE(rc.ok());
 
@@ -25,7 +25,7 @@ TEST(M3UParserTest, ParseWithMixedAttributeQuotes) {
 }
 
 TEST(M3UParserTest, ParseInvalidInputShouldFail) {
-    chronosstream::M3UParser parser;
+    timeshiftx::M3UParser parser;
     const auto rc = parser.parse("#EXTM3U\n# just comments only\n");
     EXPECT_FALSE(rc.ok());
 }

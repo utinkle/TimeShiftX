@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "chronosstream/parser/xtream_codes_parser.hpp"
+#include "timeshiftx/xtream_codes_parser.hpp"
 
 int main() {
     // 包含 1 条有效数据 + 2 条无效数据，验证 2.5 的“容错跳过 + 保留有效数据”策略。
@@ -25,8 +25,8 @@ int main() {
 ]
 )JSON";
 
-    chronosstream::XtreamCodesParser parser;
-    const chronosstream::Error rc = parser.parse(json_payload);
+    timeshiftx::XtreamCodesParser parser;
+    const timeshiftx::Error rc = parser.parse(json_payload);
     if (!rc.ok()) {
         return EXIT_FAILURE;
     }
@@ -45,7 +45,7 @@ int main() {
 
     // 空列表/全无效列表应返回错误。
     const std::string invalid_payload = R"JSON([{"name":"only_name"}])JSON";
-    const chronosstream::Error rc_invalid = parser.parse(invalid_payload);
+    const timeshiftx::Error rc_invalid = parser.parse(invalid_payload);
     if (rc_invalid.ok()) {
         return EXIT_FAILURE;
     }

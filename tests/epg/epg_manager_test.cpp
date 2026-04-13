@@ -2,7 +2,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "chronosstream/epg/epg_manager.hpp"
+#include "timeshiftx/epg_manager.hpp"
 
 TEST(EPGManagerTest, LoadXmlAndTimelineSuccess) {
     const std::string xmltv = R"XML(
@@ -14,7 +14,7 @@ TEST(EPGManagerTest, LoadXmlAndTimelineSuccess) {
 </tv>
 )XML";
 
-    chronosstream::EPGManager epg;
+    timeshiftx::EPGManager epg;
     const auto rc = epg.loadXMLTV(xmltv);
     ASSERT_TRUE(rc.ok());
 
@@ -35,7 +35,7 @@ TEST(EPGManagerTest, LoadXmlAndTimelineSuccess) {
 }
 
 TEST(EPGManagerTest, InvalidXmlShouldFail) {
-    chronosstream::EPGManager epg;
+    timeshiftx::EPGManager epg;
     const auto rc = epg.loadXMLTV("<bad>");
     EXPECT_FALSE(rc.ok());
 }

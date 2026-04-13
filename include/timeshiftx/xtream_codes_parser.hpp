@@ -4,9 +4,9 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
-#include "chronosstream/parser/isource_parser.hpp"
+#include "timeshiftx/isource_parser.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // Xtream Codes 解析器：解析 get_live_streams JSON，并映射到统一 Channel 结构。
 class XtreamCodesParser final : public ISourceParser {
@@ -33,4 +33,4 @@ private:
     std::vector<Channel> channels_;
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

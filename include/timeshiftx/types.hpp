@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 统一频道数据结构：用于屏蔽 M3U 与 Xtream Codes 的协议差异。
 struct Channel {
@@ -71,4 +71,4 @@ struct ServerCredentials {
     std::string password;
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

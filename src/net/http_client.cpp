@@ -1,10 +1,11 @@
-#include "chronosstream/net/http_client.hpp"
+#include "timeshiftx/http_client.hpp"
+#include "timeshiftx/request_queue.hpp"
 
 #include <curl/curl.h>
 #include <future>
 #include <utility>
 
-namespace chronosstream {
+namespace timeshiftx {
 
 namespace {
 
@@ -31,19 +32,19 @@ Error performRequest(const std::string& url,
                      int max_retries,
                      bool head_only) {
     if (url.empty()) {
-        return {ErrorCode::ERR_INVALID_ARGUMENT, "HTTP URL 为空"};
+        return {ErrorCode::ERR_INVALID_ARGUMENT, "HTTP URL is empty"};
     }
 
     if (max_retries < 1) {
         max_retries = 1;
     }
 
-    Error last_error {ErrorCode::ERR_INTERNAL, "未执行请求"};
+    Error last_error {ErrorCode::ERR_INTERNAL, "Request not executed"};
 
     for (int attempt = 1; attempt <= max_retries; ++attempt) {
         CURL* curl = curl_easy_init();
         if (curl == nullptr) {
-            return {ErrorCode::ERR_INTERNAL, "curl_easy_init 失败"};
+            return {ErrorCode::ERR_INTERNAL, "curl_easy_init failed"};
         }
 
         std::string local_body;
@@ -71,22 +72,22 @@ Error performRequest(const std::string& url,
 
         if (rc != CURLE_OK) {
             last_error = {ErrorCode::ERR_NETWORK_TIMEOUT,
-                          std::string("网络请求失败(第") + std::to_string(attempt) + "次): " + curl_easy_strerror(rc)};
+                          std::string("Network request failed (attempt ") + std::to_string(attempt) + "): " + curl_easy_strerror(rc)};
             continue;
         }
 
         const ErrorCode code = mapHttpStatusToError(http_code);
         if (code != ErrorCode::OK) {
             last_error = {code,
-                          std::string("HTTP 状态码异常: ") + std::to_string(http_code) +
-                              " (第" + std::to_string(attempt) + "次)"};
+                          std::string("HTTP status code abnormal: ") + std::to_string(http_code) +
+                              " (attempt " + std::to_string(attempt) + ")"};
             continue;
         }
 
         if (out_body != nullptr) {
             *out_body = std::move(local_body);
         }
-        return {ErrorCode::OK, "HTTP 请求成功"};
+        return {ErrorCode::OK, "HTTP request successful"};
     }
 
     return last_error;
@@ -103,17 +104,11 @@ Error HttpClient::head(const std::string& url, long timeout_seconds, int max_ret
 }
 
 std::future<HttpClient::HttpResponse> HttpClient::getAsync(const std::string& url, long timeout_seconds, int max_retries) {
-    return std::async(std::launch::async, [url, timeout_seconds, max_retries]() {
-        HttpResponse resp;
-        resp.error = HttpClient::get(url, resp.body, timeout_seconds, max_retries);
-        return resp;
-    });
+    return RequestQueue::instance().enqueueGet(url, timeout_seconds, max_retries);
 }
 
 std::future<Error> HttpClient::headAsync(const std::string& url, long timeout_seconds, int max_retries) {
-    return std::async(std::launch::async, [url, timeout_seconds, max_retries]() {
-        return HttpClient::head(url, timeout_seconds, max_retries);
-    });
+    return RequestQueue::instance().enqueueHead(url, timeout_seconds, max_retries);
 }
 
-} // namespace chronosstream
+} // namespace timeshiftx

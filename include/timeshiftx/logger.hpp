@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string>
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 日志级别：Phase 1 使用轻量实现，后续可替换为 spdlog 等组件。
 enum class LogLevel {
@@ -46,4 +46,4 @@ private:
     inline static LogLevel level_ = LogLevel::INFO;
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

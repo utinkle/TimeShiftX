@@ -5,11 +5,11 @@
 #include <string>
 #include <unordered_map>
 
-#include "chronosstream/catchup/catchup_engine.hpp"
-#include "chronosstream/core/errors.hpp"
-#include "chronosstream/core/types.hpp"
+#include "timeshiftx/catchup_engine.hpp"
+#include "timeshiftx/errors.hpp"
+#include "timeshiftx/types.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 播放模式：直播 or 回看。
 enum class PlaybackMode {
@@ -49,4 +49,4 @@ public:
                                                                        bool probe_catchup_availability = true);
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

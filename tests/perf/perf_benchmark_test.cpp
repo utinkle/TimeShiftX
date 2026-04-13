@@ -5,8 +5,8 @@
 #include <sstream>
 #include <string>
 
-#include "chronosstream/epg/epg_manager.hpp"
-#include "chronosstream/parser/m3u_parser.hpp"
+#include "timeshiftx/epg_manager.hpp"
+#include "timeshiftx/m3u_parser.hpp"
 
 int main() {
     using clock = std::chrono::steady_clock;
@@ -22,7 +22,7 @@ int main() {
         m3u << "http://demo/live/" << i << ".m3u8\n";
     }
 
-    chronosstream::M3UParser m3u_parser;
+    timeshiftx::M3UParser m3u_parser;
     auto t0 = clock::now();
     const auto m3u_rc = m3u_parser.parse(m3u.str());
     auto t1 = clock::now();
@@ -42,7 +42,7 @@ int main() {
     }
     xml << "</tv>\n";
 
-    chronosstream::EPGManager epg;
+    timeshiftx::EPGManager epg;
     auto t2 = clock::now();
     const auto epg_rc = epg.loadXMLTV(xml.str());
     auto t3 = clock::now();

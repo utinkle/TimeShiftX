@@ -2,9 +2,9 @@
 #include <ctime>
 #include <string>
 
-#include "chronosstream/epg/epg_manager.hpp"
-#include "chronosstream/facade/playback_facade.hpp"
-#include "chronosstream/parser/m3u_parser.hpp"
+#include "timeshiftx/epg_manager.hpp"
+#include "timeshiftx/playback_facade.hpp"
+#include "timeshiftx/m3u_parser.hpp"
 
 int main() {
     // 6.2 端到端：频道加载 -> 节目匹配 -> 回看生成。
@@ -13,7 +13,7 @@ int main() {
         "#EXTINF:-1 tvg-id=\"cctv1\" tvg-name=\"CCTV1\" catchup=\"append\" catchup-source=\"?playseek=${(b)yyyyMMddHHmmss}-${(e)yyyyMMddHHmmss}\",CCTV-1 FHD\n"
         "http://demo/live/cctv1.m3u8\n";
 
-    chronosstream::M3UParser parser;
+    timeshiftx::M3UParser parser;
     if (!parser.parse(m3u_text).ok()) {
         return EXIT_FAILURE;
     }
@@ -32,7 +32,7 @@ int main() {
 </tv>
 )XML";
 
-    chronosstream::EPGManager epg;
+    timeshiftx::EPGManager epg;
     if (!epg.loadXMLTV(xmltv).ok()) {
         return EXIT_FAILURE;
     }
@@ -59,9 +59,9 @@ int main() {
 
     // now 设置为节目结束后，触发历史回看。
     const std::time_t now = timeline.front().end_time + 60;
-    const auto decision = chronosstream::PlaybackFacade::resolveProgrammePlayback(channels.front(), timeline.front(), now, {}, false);
+    const auto decision = timeshiftx::PlaybackFacade::resolveProgrammePlayback(channels.front(), timeline.front(), now, {}, false);
 
-    if (decision.mode != chronosstream::PlaybackMode::CATCHUP) {
+    if (decision.mode != timeshiftx::PlaybackMode::CATCHUP) {
         return EXIT_FAILURE;
     }
     if (decision.url.find("playseek=") == std::string::npos) {

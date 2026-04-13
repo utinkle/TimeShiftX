@@ -3,9 +3,9 @@
 #include <string>
 #include <vector>
 
-#include "chronosstream/parser/isource_parser.hpp"
+#include "timeshiftx/isource_parser.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // M3U 解析器：支持本地文本解析与网络 URL 下载解析。
 class M3UParser final : public ISourceParser {
@@ -33,4 +33,4 @@ private:
     std::vector<Channel> channels_;
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

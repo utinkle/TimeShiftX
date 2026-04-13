@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 统一错误码：供核心中间件与 UI/播放层进行明确协作。
 enum class ErrorCode {
@@ -44,4 +44,4 @@ struct Error {
     }
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

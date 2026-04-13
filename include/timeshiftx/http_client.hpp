@@ -3,9 +3,9 @@
 #include <future>
 #include <string>
 
-#include "chronosstream/core/errors.hpp"
+#include "timeshiftx/errors.hpp"
 
-namespace chronosstream {
+namespace timeshiftx {
 
 // 轻量网络客户端接口：Phase 2 用于下载 M3U 文本。
 class HttpClient {
@@ -29,4 +29,4 @@ public:
     static std::future<Error> headAsync(const std::string& url, long timeout_seconds = 5L, int max_retries = 1);
 };
 
-} // namespace chronosstream
+} // namespace timeshiftx

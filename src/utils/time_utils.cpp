@@ -1,9 +1,9 @@
-#include "chronosstream/utils/time_utils.hpp"
+#include "timeshiftx/time_utils.hpp"
 
 #include <iomanip>
 #include <sstream>
 
-namespace chronosstream {
+namespace timeshiftx {
 namespace time_utils {
 
 std::string formatUtc(std::time_t ts, const std::string& fmt) {
@@ -25,4 +25,4 @@ bool isProgrammeEnded(std::time_t programme_end_time, std::time_t now_utc) {
 }
 
 } // namespace time_utils
-} // namespace chronosstream
+} // namespace timeshiftx

@@ -1,8 +1,8 @@
-#include "chronosstream/facade/playback_facade.hpp"
+#include "timeshiftx/playback_facade.hpp"
 
 #include <future>
 
-namespace chronosstream {
+namespace timeshiftx {
 
 namespace {
 void fillHttpHeaders(const Channel& channel, PlaybackDecision& d) {
@@ -26,18 +26,18 @@ PlaybackDecision PlaybackFacade::resolveProgrammePlayback(const Channel& channel
                                                           std::time_t now_utc,
                                                           const ServerCredentials& creds,
                                                           bool probe_catchup_availability) {
-    // 5.5: 节目未结束，按直播处理。
+    // 5.5: If the program has not ended, treat as live.
     if (programme.end_time >= now_utc) {
         return resolveLive(channel);
     }
 
     const std::string catchup_url = CatchupEngine::buildUrl(channel, programme, creds);
 
-    // 5.4: 回看构造失败则回退直播并上报错误。
+    // 5.4: If catchup construction fails, fall back to live and report error.
     if (catchup_url.empty() || catchup_url == channel.live_url) {
         PlaybackDecision d = resolveLive(channel);
         if (channel.supports_catchup) {
-            d.status = {ErrorCode::ERR_CATCHUP_BUILD_FAILED, "回看地址构造失败，已回退直播"};
+            d.status = {ErrorCode::ERR_CATCHUP_BUILD_FAILED, "Catchup address construction failed, fallen back to live"};
         }
         return d;
     }
@@ -70,4 +70,4 @@ std::future<PlaybackDecision> PlaybackFacade::resolveProgrammePlaybackAsync(cons
     });
 }
 
-} // namespace chronosstream
+} // namespace timeshiftx

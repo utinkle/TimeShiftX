@@ -1,14 +1,14 @@
 #include <ctime>
 #include <iostream>
 
-#include "chronosstream/catchup/catchup_engine.hpp"
-#include "chronosstream/facade/playback_facade.hpp"
-#include "chronosstream/core/logger.hpp"
-#include "chronosstream/core/types.hpp"
-#include "chronosstream/utils/time_utils.hpp"
+#include "timeshiftx/catchup_engine.hpp"
+#include "timeshiftx/playback_facade.hpp"
+#include "timeshiftx/logger.hpp"
+#include "timeshiftx/types.hpp"
+#include "timeshiftx/time_utils.hpp"
 
 int main() {
-    using namespace chronosstream;
+    using namespace timeshiftx;
 
     Logger::log(LogLevel::INFO, "ChronosStream Core demo start");
 

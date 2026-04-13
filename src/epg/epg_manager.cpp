@@ -1,4 +1,5 @@
-#include "chronosstream/epg/epg_manager.hpp"
+#include "timeshiftx/epg_manager.hpp"
+#include "pugixml/pugixml.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -6,9 +7,7 @@
 #include <shared_mutex>
 #include <utility>
 
-#include "pugixml/pugixml.hpp"
-
-namespace chronosstream {
+namespace timeshiftx {
 
 namespace {
 
@@ -48,14 +47,14 @@ void EPGManager::setChannelFilter(std::unordered_set<std::string> allowed_epg_id
 
 Error EPGManager::loadXMLTV(const std::string& xml_content) {
     if (xml_content.empty()) {
-        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, "XMLTV 内容为空"};
+        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, "XMLTV content is empty"};
     }
 
     // 使用 pugixml 进行文档加载与合法性检查。
     pugi::xml_document doc;
     auto result = doc.load_string(xml_content.c_str());
     if (!result) {
-        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, std::string("XMLTV 解析失败: ") + result.description()};
+        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, std::string("XMLTV parsing failed: ") + result.description()};
     }
 
     const std::string& raw = doc.raw_text();
@@ -142,7 +141,7 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
     }
 
     if (next_channel_ids.empty() || programme_count == 0) {
-        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, "XMLTV 解析失败：未提取到频道或节目"};
+        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, "XMLTV parsing failed: no channels or programs extracted"};
     }
 
     for (auto& kv : next_timelines) {
@@ -152,7 +151,7 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
 
     const std::size_t parsed_channel_count = next_channel_ids.size();
 
-    // 双缓冲热更新：新数据完整构建后再一次性切换。
+    // Double buffering hot update: switch all at once after new data is fully built.
     {
         std::unique_lock<std::shared_mutex> lk(rw_mutex_);
         channel_ids_ = std::move(next_channel_ids);
@@ -162,7 +161,7 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
     }
 
     return {ErrorCode::OK,
-            "XMLTV 解析成功，频道数: " + std::to_string(parsed_channel_count) + "，节目数: " + std::to_string(programme_count)};
+            "XMLTV parsing successful, channels: " + std::to_string(parsed_channel_count) + ", programs: " + std::to_string(programme_count)};
 }
 
 std::vector<Programme> EPGManager::getTimelineForChannel(const std::string& epg_match_id, std::time_t target_date) const {
@@ -274,4 +273,4 @@ std::string EPGManager::normalizeChannelName(const std::string& raw_name) {
     return normalized;
 }
 
-} // namespace chronosstream
+} // namespace timeshiftx
