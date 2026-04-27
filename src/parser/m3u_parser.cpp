@@ -3,7 +3,7 @@
 #include <cctype>
 #include <sstream>
 
-#include "timeshiftx/http_client.hpp"
+#include "timeshiftx/network_service.hpp"
 
 namespace timeshiftx {
 
@@ -89,9 +89,9 @@ Error M3UParser::parse(const std::string& raw_data) {
     return {ErrorCode::OK, "M3U parsing successful"};
 }
 
-Error M3UParser::parseFromUrl(const std::string& url, long timeout_seconds) {
+Error M3UParser::parseFromUrl(const std::string& url, long timeout_seconds, INetworkPlugin* injected_plugin) {
     std::string body;
-    Error net_rc = HttpClient::get(url, body, timeout_seconds);
+    Error net_rc = NetworkService::get(url, body, timeout_seconds, 1, injected_plugin);
     if (!net_rc.ok()) {
         return net_rc;
     }

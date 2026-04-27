@@ -1,5 +1,5 @@
 #include "timeshiftx/catchup_engine.hpp"
-#include "timeshiftx/http_client.hpp"
+#include "timeshiftx/network_service.hpp"
 
 #include <algorithm>
 #include <ctime>
@@ -64,12 +64,15 @@ std::string CatchupEngine::buildUrl(const Channel& channel, const Programme& tar
     return channel.live_url;
 }
 
-Error CatchupEngine::probeAvailability(const std::string& url, long timeout_seconds, int max_retries) {
+Error CatchupEngine::probeAvailability(const std::string& url,
+                                       long timeout_seconds,
+                                       int max_retries,
+                                       INetworkPlugin* injected_plugin) {
     if (url.empty()) {
         return {ErrorCode::ERR_INVALID_ARGUMENT, "Catchup URL is empty"};
     }
 
-    const Error rc = HttpClient::head(url, timeout_seconds, max_retries);
+    const Error rc = NetworkService::head(url, timeout_seconds, max_retries, injected_plugin);
     if (rc.ok()) {
         return rc;
     }

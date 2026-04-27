@@ -7,14 +7,16 @@
 
 namespace timeshiftx {
 
+class INetworkPlugin;
+
 // M3U 解析器：支持本地文本解析与网络 URL 下载解析。
 class M3UParser final : public ISourceParser {
 public:
     // 解析 M3U 文本内容（支持 #EXTINF 扩展属性）。
     Error parse(const std::string& raw_data) override;
 
-    // 从 URL 拉取 M3U 并解析（依赖 HttpClient/libcurl）。
-    Error parseFromUrl(const std::string& url, long timeout_seconds = 10L);
+    // 从 URL 拉取 M3U 并解析（通过统一网络服务层）。
+    Error parseFromUrl(const std::string& url, long timeout_seconds = 10L, INetworkPlugin* injected_plugin = nullptr);
 
     // 读取已解析结果。
     std::vector<Channel> getChannels() const override;
