@@ -38,6 +38,9 @@ add_library(timeshiftx STATIC
     src/epg/epg_manager.cpp
     src/facade/playback_facade.cpp
     src/net/http_client.cpp
+    src/net/libcurl_network_plugin.cpp
+    src/net/network_plugin_manager.cpp
+    src/net/network_service.cpp
     src/net/request_queue.cpp
     src/parser/m3u_parser.cpp
     src/parser/xtream_codes_parser.cpp
@@ -143,6 +146,17 @@ if(CHRONOS_ENABLE_TESTS)
     )
 
     add_test(NAME playback_facade_test COMMAND playback_facade_test)
+
+    add_executable(network_plugin_manager_test
+        tests/net/network_plugin_manager_test.cpp
+    )
+
+    target_link_libraries(network_plugin_manager_test
+        PRIVATE
+            timeshiftx
+    )
+
+    add_test(NAME network_plugin_manager_test COMMAND network_plugin_manager_test)
 
     add_executable(end_to_end_test
         tests/integration/end_to_end_test.cpp
