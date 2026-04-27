@@ -8,6 +8,8 @@
 
 namespace timeshiftx {
 
+class INetworkPlugin;
+
 // Xtream Codes 解析器：解析 get_live_streams JSON，并映射到统一 Channel 结构。
 class XtreamCodesParser final : public ISourceParser {
 public:
@@ -18,7 +20,8 @@ public:
     Error parseFromApi(const std::string& server_url,
                        const std::string& username,
                        const std::string& password,
-                       long timeout_seconds = 10L);
+                       long timeout_seconds = 10L,
+                       INetworkPlugin* injected_plugin = nullptr);
 
     std::vector<Channel> getChannels() const override;
 

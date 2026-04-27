@@ -7,6 +7,8 @@
 
 namespace timeshiftx {
 
+class INetworkPlugin;
+
 // 回看 URL 引擎：统一处理 M3U 模板回看与 Xtream Codes 回看拼接。
 class CatchupEngine {
 public:
@@ -14,7 +16,10 @@ public:
     static std::string buildUrl(const Channel& channel, const Programme& target_prog, const ServerCredentials& creds = {});
 
     // 5.3: 回看可用性探测（HEAD）。失败时返回可供 UI 识别的错误码。
-    static Error probeAvailability(const std::string& url, long timeout_seconds = 5L, int max_retries = 1);
+    static Error probeAvailability(const std::string& url,
+                                   long timeout_seconds = 5L,
+                                   int max_retries = 1,
+                                   INetworkPlugin* injected_plugin = nullptr);
 
 private:
     // M3U 回看构建：解析 ${(b)...}/${(e)...} 模板并拼接。

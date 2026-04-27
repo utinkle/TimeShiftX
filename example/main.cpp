@@ -2,22 +2,81 @@
 #include <iostream>
 
 #include "timeshiftx/catchup_engine.hpp"
+#include "timeshiftx/inetwork_plugin.hpp"
+#include "timeshiftx/m3u_parser.hpp"
+#include "timeshiftx/network_plugin_manager.hpp"
 #include "timeshiftx/playback_facade.hpp"
-#include "timeshiftx/logger.hpp"
 #include "timeshiftx/types.hpp"
-#include "timeshiftx/time_utils.hpp"
+#include "timeshiftx/xtream_codes_parser.hpp"
+
+namespace {
+
+class DemoInjectedPlugin final : public timeshiftx::INetworkPlugin {
+public:
+    std::string name() const override { return "demo-injected"; }
+
+    timeshiftx::NetworkResponse perform(const timeshiftx::NetworkRequest& request) override {
+        using namespace timeshiftx;
+        if (request.method == NetworkMethod::HEAD) {
+            return {Error{ErrorCode::OK, "mock head ok"}, 200, {}, {}, 0};
+        }
+
+        if (request.url.find("player_api.php") != std::string::npos) {
+            return {
+                Error{ErrorCode::OK, "mock xc ok"},
+                200,
+                R"([{"stream_id":"1001","name":"CCTV-1","epg_channel_id":"cctv1","stream_url":"http://demo/live/1001.m3u8","tv_archive":"1","tv_archive_duration":"3"}])",
+                {},
+                0,
+            };
+        }
+
+        return {
+            timeshiftx::Error{timeshiftx::ErrorCode::OK, "mock m3u ok"},
+            200,
+            "#EXTM3U\n#EXTINF:-1 tvg-id=\"cctv1\",CCTV-1\nhttp://demo/live/cctv1.m3u8\n",
+            {},
+            0,
+        };
+    }
+};
+
+const char* compiledBackend() {
+#if defined(TIMESHIFTX_NETWORK_BACKEND_QT)
+    return "qt";
+#else
+    return "libcurl";
+#endif
+}
+
+} // namespace
 
 int main() {
     using namespace timeshiftx;
 
-    Logger::log(LogLevel::INFO, "ChronosStream Core demo start");
+    std::cout << "[Demo] compiled backend = " << compiledBackend() << '\n';
+    std::cout << "[Demo] preferred plugin = " << NetworkPluginManager::instance().preferredPluginName() << '\n';
 
+    DemoInjectedPlugin injected;
+
+    // 示例1：M3U 解析（通过 injected plugin，不依赖外网）
+    M3UParser m3u;
+    Error m3u_rc = m3u.parseFromUrl("http://demo/m3u", 3, &injected);
+    std::cout << "[M3U] rc=" << static_cast<int>(m3u_rc.code) << ", channels=" << m3u.getChannels().size() << '\n';
+
+    // 示例2：Xtream Codes 解析（通过 injected plugin）
+    XtreamCodesParser xc;
+    Error xc_rc = xc.parseFromApi("http://server", "user", "pass", 3, &injected);
+    std::cout << "[XC] rc=" << static_cast<int>(xc_rc.code) << ", channels=" << xc.getChannels().size() << '\n';
+
+    // 示例3：回看 URL 生成 + 可用性探测（probe 使用 injected plugin）
     Channel channel;
     channel.name = "CCTV1";
     channel.source_type = Channel::SourceType::XTREAM_CODES;
     channel.supports_catchup = true;
+    channel.catchup_days = 3;
     channel.xc_stream_id = "1001";
-    channel.live_url = "http://example.com/live/cctv1.m3u8";
+    channel.live_url = "http://demo/live/cctv1.m3u8";
 
     std::time_t now = std::time(nullptr);
     Programme prog;
@@ -30,25 +89,12 @@ int main() {
     creds.username = "demo_user";
     creds.password = "demo_pass";
 
-    // 5.5 示例流程1：历史节目点击 -> 尝试回看（此处关闭可用性探测，避免 demo 依赖外网）。
-    auto historical = PlaybackFacade::resolveProgrammePlayback(channel, prog, now, creds, false);
-    std::cout << "[Historical] mode=" << (historical.mode == PlaybackMode::CATCHUP ? "CATCHUP" : "LIVE")
-              << ", url=" << historical.url << '\n';
+    auto decision = PlaybackFacade::resolveProgrammePlayback(channel, prog, now, creds, false);
+    Error probe = CatchupEngine::probeAvailability(decision.url, 3, 1, &injected);
 
-    // 5.5 示例流程2：当前直播节目 -> 直接直播。
-    Programme on_air = prog;
-    on_air.end_time = now + 120;
-    auto live = PlaybackFacade::resolveProgrammePlayback(channel, on_air, now, creds, false);
-    std::cout << "[OnAir] mode=" << (live.mode == PlaybackMode::CATCHUP ? "CATCHUP" : "LIVE")
-              << ", url=" << live.url << '\n';
+    std::cout << "[Catchup] mode=" << (decision.mode == PlaybackMode::CATCHUP ? "CATCHUP" : "LIVE")
+              << ", probe_rc=" << static_cast<int>(probe.code)
+              << ", url=" << decision.url << '\n';
 
-    // 5.5 示例流程3：构造失败 -> 回退直播并给出错误。
-    ServerCredentials bad_creds;
-    bad_creds.server_url = "http://demo.server:8080";
-    auto fallback = PlaybackFacade::resolveProgrammePlayback(channel, prog, now, bad_creds, false);
-    std::cout << "[Fallback] mode=" << (fallback.mode == PlaybackMode::CATCHUP ? "CATCHUP" : "LIVE")
-              << ", err=" << static_cast<int>(fallback.status.code) << ", msg=" << fallback.status.message << '\n';
-
-    Logger::log(LogLevel::INFO, "ChronosStream Core demo done");
     return 0;
 }

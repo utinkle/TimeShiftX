@@ -1,5 +1,5 @@
 #include "timeshiftx/xtream_codes_parser.hpp"
-#include "timeshiftx/http_client.hpp"
+#include "timeshiftx/network_service.hpp"
 
 #include <sstream>
 
@@ -57,7 +57,8 @@ Error XtreamCodesParser::parse(const std::string& raw_data) {
 Error XtreamCodesParser::parseFromApi(const std::string& server_url,
                                       const std::string& username,
                                       const std::string& password,
-                                      long timeout_seconds) {
+                                      long timeout_seconds,
+                                      INetworkPlugin* injected_plugin) {
     if (server_url.empty() || username.empty() || password.empty()) {
         return {ErrorCode::ERR_INVALID_ARGUMENT, "Xtream authentication parameters are empty"};
     }
@@ -68,7 +69,7 @@ Error XtreamCodesParser::parseFromApi(const std::string& server_url,
                             "&action=get_live_streams";
 
     std::string body;
-    Error net_rc = HttpClient::get(url, body, timeout_seconds);
+    Error net_rc = NetworkService::get(url, body, timeout_seconds, 1, injected_plugin);
     if (!net_rc.ok()) {
         return net_rc;
     }

@@ -4,7 +4,7 @@
 
 ### 1.1 解析层
 - `M3UParser::parse(raw_data)`：解析 M3U 文本，输出统一 `Channel` 列表。
-- `M3UParser::parseFromUrl(url)`：通过 `HttpClient` 下载并解析 M3U。
+- `M3UParser::parseFromUrl(url)`：通过 `NetworkService`（可注入插件）下载并解析 M3U。
 - `XtreamCodesParser::parse(raw_json)`：解析 `get_live_streams` JSON。
 - `XtreamCodesParser::parseFromApi(server, user, pass)`：直接请求 Xtream API 并解析。
 
