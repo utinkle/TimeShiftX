@@ -120,12 +120,12 @@ bool XtreamCodesParser::mapStreamToChannel(const nlohmann::json& stream,
 
     const std::string archive_flag = getStringField(stream, "tv_archive");
     const std::string archive_days = getStringField(stream, "tv_archive_duration");
-    out.supports_catchup = (archive_flag == "1" || archive_flag == "true");
+    out.catchup_declared = (archive_flag == "1" || archive_flag == "true");
 
     if (!archive_days.empty()) {
         try {
             out.catchup_days = std::stoi(archive_days);
-            if (out.catchup_days > 0) out.supports_catchup = true;
+            if (out.catchup_days > 0) out.catchup_declared = true;
         } catch (...) {
             out.catchup_days = 0;
         }

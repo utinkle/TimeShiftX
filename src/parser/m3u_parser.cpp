@@ -1,14 +1,15 @@
 #include "timeshiftx/m3u_parser.hpp"
+#include "timeshiftx/network_service.hpp"
 
 #include <cctype>
 #include <sstream>
 
-#include "timeshiftx/network_service.hpp"
 
 namespace timeshiftx {
 
 Error M3UParser::parse(const std::string& raw_data) {
     channels_.clear();
+    epg_url_.clear();
 
     if (raw_data.empty()) {
         return {ErrorCode::ERR_PARSE_M3U_FAILED, "M3U text is empty"};
@@ -21,6 +22,10 @@ Error M3UParser::parse(const std::string& raw_data) {
     std::string pending_user_agent;
     std::string pending_referer;
 
+    // 重置全局catchup配置
+    global_catchup_type_.clear();
+    global_catchup_template_.clear();
+
     while (std::getline(iss, line)) {
         line = trim(line);
         if (line.empty()) {
@@ -29,12 +34,21 @@ Error M3UParser::parse(const std::string& raw_data) {
 
         // Ignore M3U header information.
         if (line.rfind("#EXTM3U", 0) == 0) {
+            // 尝试提取 x-tvg-url 属性
+            std::string url = extractQuotedAttr(line, "x-tvg-url");
+            if (!url.empty()) {
+                epg_url_ = url;
+            }
+            // 提取全局 catchup 配置
+            global_catchup_type_ = extractQuotedAttr(line, "catchup");
+            global_catchup_template_ = extractQuotedAttr(line, "catchup-source");
+            // 继续跳过该行
             continue;
         }
 
         // Process channel description line: extract attributes and display name.
         if (line.rfind("#EXTINF:", 0) == 0) {
-            pending_channel = parseExtInfLine(line);
+            pending_channel = parseExtInfLineWithGlobalCatchup(line);
             pending_channel.source_type = Channel::SourceType::M3U;
 
             // If #EXTINF is not defined, inherit the latest EXTVLCOPT.
@@ -137,8 +151,26 @@ Channel M3UParser::parseExtInfLine(const std::string& extinf_line) {
     }
 
     // Simplified rule: as long as catchup or catchup-source exists, it is considered catchup-capable.
-    ch.supports_catchup = !ch.catchup_type.empty() || !ch.catchup_template.empty();
+    ch.catchup_declared = !ch.catchup_type.empty() || !ch.catchup_template.empty();
 
+    return ch;
+}
+
+Channel M3UParser::parseExtInfLineWithGlobalCatchup(const std::string& extinf_line) const {
+    Channel ch = parseExtInfLine(extinf_line);
+    
+    // 实现fallback逻辑：自身 > 全局 > 无支持
+    // 如果channel自身没有catchup类型，使用全局的
+    if (ch.catchup_type.empty()) {
+        ch.catchup_type = global_catchup_type_;
+    }
+    // 如果channel自身没有catchup模板，使用全局的
+    if (ch.catchup_template.empty()) {
+        ch.catchup_template = global_catchup_template_;
+    }
+    // 更新catchup_declared：只要自身或全局任意一个定义了，就认为支持回看
+    ch.catchup_declared = !ch.catchup_type.empty() || !ch.catchup_template.empty();
+    
     return ch;
 }
 

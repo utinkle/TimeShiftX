@@ -28,8 +28,8 @@ private:
     // Xtream 回看构建：timeshift/user/pass/duration/start/stream_id.ts。
     static std::string buildXCCatchup(const Channel& channel, const Programme& prog, const ServerCredentials& creds);
 
-    // 将 Java 风格时间模板转换为 strftime 模板后格式化。
-    static std::string formatTimeWithTemplate(std::time_t ts, const std::string& java_like_fmt);
+    // 将 Java 风格时间模板转换为 strftime 模板后格式化（支持 UTC 模式）。
+    static std::string formatTimeWithTemplate(std::time_t ts, const std::string& java_like_fmt, bool use_utc = false);
 
     // URL 清洗：清理重复 ?/&，并做最基础的空白编码。
     static std::string sanitizeUrl(const std::string& raw_url);

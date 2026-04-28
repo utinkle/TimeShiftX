@@ -1,6 +1,25 @@
 #include "timeshiftx/network_plugin_manager.hpp"
-
+#if defined(TIMESHIFTX_NETWORK_BACKEND_QT)
+#include "timeshiftx/qt_network_plugin.hpp"
+#else
+#include "timeshiftx/libcurl_network_plugin.hpp"
+#endif
 namespace timeshiftx {
+
+namespace {
+struct DefaultNetworkPluginBootstrap {
+    DefaultNetworkPluginBootstrap() {
+#if defined(TIMESHIFTX_NETWORK_BACKEND_QT)
+        NetworkPluginManager::instance().registerPlugin(createQtNetworkPlugin(), true);
+#else
+        NetworkPluginManager::instance().registerPlugin(createLibcurlNetworkPlugin(), true);
+#endif
+    }
+};
+
+DefaultNetworkPluginBootstrap g_default_network_plugin_bootstrap;
+
+} // namespace
 
 NetworkPluginManager& NetworkPluginManager::instance() {
     static NetworkPluginManager manager;
@@ -75,6 +94,10 @@ std::shared_ptr<INetworkPlugin> NetworkPluginManager::preferredPlugin() const {
 
 std::shared_ptr<INetworkPlugin> NetworkPluginManager::plugin(const std::string& plugin_name) const {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (plugin_name.empty()) {
+        return plugins_.empty() ? nullptr : plugins_.begin()->second;
+    }
+
     const auto it = plugins_.find(plugin_name);
     if (it == plugins_.end()) {
         return nullptr;

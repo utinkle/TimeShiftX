@@ -12,11 +12,15 @@
 
 namespace timeshiftx {
 
+class INetworkPlugin;
+
 // EPG 管理器：负责 XMLTV 解析、时间轴索引与严格匹配。
 class EPGManager {
 public:
     // 设置按需解析过滤器（3.5）：仅保留过滤集合内的频道节目，降低大 XMLTV 内存占用。
     void setChannelFilter(std::unordered_set<std::string> allowed_epg_ids);
+
+    Error loadFromUrl(const std::string& url, long timeout_seconds = 10L, INetworkPlugin* injected_plugin = nullptr);
 
     // 加载 XMLTV 文本并建立索引（3.1）。
     Error loadXMLTV(const std::string& xml_content);

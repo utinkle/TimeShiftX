@@ -37,8 +37,8 @@ struct Channel {
     // EPG 匹配字段：优先使用 tvg-id / epg channel id。
     std::string epg_match_id;
 
-    // 是否支持回看。
-    bool supports_catchup {false};
+    // M3U 中声明的支持
+    bool catchup_declared {false};
 
     // 可回看天数（部分来源提供）。
     int catchup_days {0};

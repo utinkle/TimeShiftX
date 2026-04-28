@@ -1,5 +1,6 @@
 #include "timeshiftx/epg_manager.hpp"
 #include "pugixml/pugixml.hpp"
+#include "timeshiftx/network_service.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -43,6 +44,21 @@ std::string readAttribute(const std::string& tag_text, const std::string& attr) 
 void EPGManager::setChannelFilter(std::unordered_set<std::string> allowed_epg_ids) {
     std::unique_lock<std::shared_mutex> lk(rw_mutex_);
     filter_channel_ids_ = std::move(allowed_epg_ids);
+}
+
+Error EPGManager::loadFromUrl(const std::string &url, long timeout_seconds, INetworkPlugin *injected_plugin)
+{
+    if (url.empty()) {
+        return {ErrorCode::ERR_INVALID_ARGUMENT, "EPG URL is empty"};
+    }
+
+    std::string xml_content;
+    Error net_err = NetworkService::get(url, xml_content, timeout_seconds, 2, injected_plugin);
+    if (!net_err.ok()) {
+        return net_err;
+    }
+
+    return loadXMLTV(xml_content);
 }
 
 Error EPGManager::loadXMLTV(const std::string& xml_content) {
@@ -198,7 +214,7 @@ std::string EPGManager::fuzzyMatchChannelName(const std::string& raw_name) const
     std::shared_lock<std::shared_mutex> lk(rw_mutex_);
     const std::string norm = normalizeChannelName(raw_name);
     if (norm.empty()) return {};
-    auto it = normalized_name_to_epg_id_.find(norm);
+    auto it = normalized_name_to_epg_id_.find(raw_name);
     return it == normalized_name_to_epg_id_.end() ? std::string{} : it->second;
 }
 
@@ -258,17 +274,24 @@ std::string EPGManager::extractTagText(const std::string& block, const std::stri
 std::string EPGManager::normalizeChannelName(const std::string& raw_name) {
     std::string upper;
     upper.reserve(raw_name.size());
-    for (char c : raw_name) upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+    for (char c : raw_name) {
+        upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
+    }
 
     const std::vector<std::string> noise_tokens = {"ULTRAHD", "FULLHD", "FHD", "UHD", "HD", "SD", "4K", "1080P", "720P"};
     for (const auto& token : noise_tokens) {
         std::size_t pos = 0;
-        while ((pos = upper.find(token, pos)) != std::string::npos) upper.erase(pos, token.size());
+        while ((pos = upper.find(token, pos)) != std::string::npos) {
+            upper.erase(pos, token.size());
+        }
     }
 
     std::string normalized;
     for (char c : upper) {
-        if (std::isalnum(static_cast<unsigned char>(c)) != 0) normalized.push_back(c);
+        unsigned char uc = static_cast<unsigned char>(c);
+        if (std::isalnum(uc) || (uc & 0x80)) {
+            normalized.push_back(c);
+        }
     }
     return normalized;
 }

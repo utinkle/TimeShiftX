@@ -73,7 +73,7 @@ int main() {
     Channel channel;
     channel.name = "CCTV1";
     channel.source_type = Channel::SourceType::XTREAM_CODES;
-    channel.supports_catchup = true;
+    channel.catchup_declared = true;
     channel.catchup_days = 3;
     channel.xc_stream_id = "1001";
     channel.live_url = "http://demo/live/cctv1.m3u8";
@@ -89,7 +89,7 @@ int main() {
     creds.username = "demo_user";
     creds.password = "demo_pass";
 
-    auto decision = PlaybackFacade::resolveProgrammePlayback(channel, prog, now, creds, false);
+    auto decision = PlaybackFacade::resolveProgrammePlayback(channel, prog, creds, false);
     Error probe = CatchupEngine::probeAvailability(decision.url, 3, 1, &injected);
 
     std::cout << "[Catchup] mode=" << (decision.mode == PlaybackMode::CATCHUP ? "CATCHUP" : "LIVE")

@@ -31,22 +31,9 @@ public:
     // 直播播放：直接返回 live_url。
     static PlaybackDecision resolveLive(const Channel& channel);
 
-    // 历史/当前节目播放决策：
-    // - 节目未结束 => 直播
-    // - 节目已结束 => 尝试回看
-    // - 回看构造/探测失败 => 回退直播并返回错误状态
-    static PlaybackDecision resolveProgrammePlayback(const Channel& channel,
-                                                     const Programme& programme,
-                                                     std::time_t now_utc,
-                                                     const ServerCredentials& creds = {},
-                                                     bool probe_catchup_availability = true);
-
-    // 异步版本：避免 UI 线程阻塞。
-    static std::future<PlaybackDecision> resolveProgrammePlaybackAsync(const Channel& channel,
-                                                                       const Programme& programme,
-                                                                       std::time_t now_utc,
-                                                                       const ServerCredentials& creds = {},
-                                                                       bool probe_catchup_availability = true);
+    // 节目单回看：根据节目时间回看，并生成最终 URL。
+    static PlaybackDecision resolveProgrammePlayback(const Channel& channel, const Programme& programme, const ServerCredentials& creds = {}, bool probe_catchup_availability = true);
+    static std::future<PlaybackDecision> resolveProgrammePlaybackAsync(const Channel& channel, const Programme& programme, const ServerCredentials& creds = {}, bool probe_catchup_availability = true);
 };
 
 } // namespace timeshiftx

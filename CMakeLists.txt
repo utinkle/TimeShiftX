@@ -44,7 +44,7 @@ elseif(TIMESHIFTX_NETWORK_BACKEND STREQUAL "libcurl")
     set(TIMESHIFTX_ENABLE_LIBCURL_PLUGIN ON CACHE BOOL "" FORCE)
 endif()
 
-add_library(timeshiftx_core STATIC
+add_library(timeshiftx STATIC
     src/catchup/catchup_engine.cpp
     src/epg/epg_manager.cpp
     src/facade/playback_facade.cpp
@@ -105,11 +105,7 @@ else()
     message(FATAL_ERROR "Unsupported TIMESHIFTX_NETWORK_BACKEND=${TIMESHIFTX_NETWORK_BACKEND}, expected libcurl or qt")
 endif()
 
-add_library(timeshiftx STATIC
-    src/net/network_bootstrap.cpp
-)
-
-target_include_directories(timeshiftx_core
+target_include_directories(timeshiftx
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party
@@ -141,7 +137,7 @@ target_include_directories(timeshiftx
 
 if(CHRONOS_ENABLE_STRICT_WARNINGS)
     if(MSVC)
-        target_compile_options(timeshiftx_core PRIVATE /W4 /permissive-)
+        target_compile_options(timeshiftx PRIVATE /W4 /permissive-)
         if(TIMESHIFTX_ENABLE_LIBCURL_PLUGIN)
             target_compile_options(timeshiftx_net_libcurl_plugin PRIVATE /W4 /permissive-)
         endif()
@@ -150,7 +146,7 @@ if(CHRONOS_ENABLE_STRICT_WARNINGS)
         endif()
         target_compile_options(timeshiftx PRIVATE /W4 /permissive-)
     else()
-        target_compile_options(timeshiftx_core PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(timeshiftx PRIVATE -Wall -Wextra -Wpedantic)
         if(TIMESHIFTX_ENABLE_LIBCURL_PLUGIN)
             target_compile_options(timeshiftx_net_libcurl_plugin PRIVATE -Wall -Wextra -Wpedantic)
         endif()
@@ -161,7 +157,7 @@ if(CHRONOS_ENABLE_STRICT_WARNINGS)
     endif()
 endif()
 
-target_compile_definitions(timeshiftx_core
+target_compile_definitions(timeshiftx
     PUBLIC
         TIMESHIFTX_VERSION="${PROJECT_VERSION}"
 )
@@ -185,11 +181,6 @@ else()
     target_compile_definitions(timeshiftx PRIVATE TIMESHIFTX_NETWORK_BACKEND_QT=1)
 endif()
 
-target_link_libraries(timeshiftx
-    PUBLIC
-        timeshiftx_core
-)
-
 if(TIMESHIFTX_NETWORK_BACKEND STREQUAL "libcurl")
     target_link_libraries(timeshiftx PRIVATE timeshiftx_net_libcurl_plugin)
 else()
@@ -204,3 +195,20 @@ target_link_libraries(timeshiftx_demo
     PRIVATE
         timeshiftx
 )
+
+if(TIMESHIFTX_ENABLE_QT_PLUGIN)
+    add_executable(timeshiftx_qt_demo
+        example/qt_demo.cpp
+    )
+
+    target_link_libraries(timeshiftx_qt_demo
+        PRIVATE
+            timeshiftx
+            ${TIMESHIFTX_QT_LIBS}
+    )
+
+    # 设置 Qt 自动 MOC
+    set_target_properties(timeshiftx_qt_demo PROPERTIES
+        AUTOMOC ON
+    )
+endif()

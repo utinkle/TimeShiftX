@@ -21,6 +21,9 @@ public:
     // 读取已解析结果。
     std::vector<Channel> getChannels() const override;
 
+        // 获取解析到的 EPG 数据源 URL
+    std::string getEpgUrl() const { return epg_url_; }
+
 private:
     // 解析单行 #EXTINF 并填充 channel 元信息。
     static Channel parseExtInfLine(const std::string& extinf_line);
@@ -31,8 +34,15 @@ private:
     // 去除左右空白字符。
     static std::string trim(const std::string& input);
 
+    // 解析单行 #EXTINF 并填充 channel 元信息（支持全局catchup继承）。
+    Channel parseExtInfLineWithGlobalCatchup(const std::string& extinf_line) const;
+
 private:
     std::vector<Channel> channels_;
+    std::string epg_url_;
+    // 全局 catchup 配置
+    std::string global_catchup_type_;
+    std::string global_catchup_template_;
 };
 
 } // namespace timeshiftx

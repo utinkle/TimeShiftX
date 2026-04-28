@@ -8,6 +8,8 @@
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
+#include <QMutex>
+#include <QMutexLocker>
 
 #include <chrono>
 #include <future>
@@ -31,23 +33,14 @@ public:
     QtNetworkPlugin() {
         context_.moveToThread(&worker_thread_);
         worker_thread_.start();
-
-        QMetaObject::invokeMethod(
-            &context_,
-            [this]() {
-                manager_ = std::make_unique<QNetworkAccessManager>();
-            },
-            Qt::BlockingQueuedConnection);
     }
 
     ~QtNetworkPlugin() override {
-        QMetaObject::invokeMethod(
-            &context_,
-            [this]() {
-                manager_.reset();
-            },
-            Qt::BlockingQueuedConnection);
-
+        if (manager_created_.load()) {
+            QMetaObject::invokeMethod(&context_,
+                [this]() { manager_.reset(); },
+                Qt::BlockingQueuedConnection);
+        }
         worker_thread_.quit();
         worker_thread_.wait();
     }
@@ -68,6 +61,7 @@ public:
     }
 
     void performAsync(const NetworkRequest& request, NetworkCallback callback) override {
+        ensureManager();
         auto shared_cb = std::make_shared<NetworkCallback>(std::move(callback));
 
         QMetaObject::invokeMethod(
@@ -79,6 +73,26 @@ public:
     }
 
 private:
+    void ensureManager() {
+        if (manager_created_.load()) return;  // 已创建
+
+        QMutexLocker locker(&init_mutex_);
+        if (manager_created_.load()) return;  // 双重检查
+
+        // 此时 qApp 必然已存在（因为第一次调用发生在 main() 之后）
+        bool ok = QMetaObject::invokeMethod(&context_,
+            [this]() {
+                manager_ = std::make_unique<QNetworkAccessManager>();
+            },
+            Qt::BlockingQueuedConnection);
+        
+        if (!ok) {
+            // 极少数异常情况处理（例如线程未运行）
+            throw std::runtime_error("Failed to create QNetworkAccessManager in worker thread");
+        }
+        manager_created_.store(true);
+    }
+
     void executeAttempt(const NetworkRequest& request, const std::shared_ptr<NetworkCallback>& callback) {
         if (!manager_) {
             (*callback)({Error{ErrorCode::ERR_INTERNAL, "Qt network manager not initialized"}, 0, {}, {}, 0});
@@ -149,6 +163,9 @@ private:
     QThread worker_thread_;
     QObject context_;
     std::unique_ptr<QNetworkAccessManager> manager_;
+
+    std::atomic<bool> manager_created_{false};
+    QMutex init_mutex_;
 };
 
 } // namespace

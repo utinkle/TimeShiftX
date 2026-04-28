@@ -28,7 +28,12 @@ std::shared_ptr<INetworkPlugin> resolveManagerPlugin(const std::string& plugin_n
     if (!plugin_name.empty()) {
         return manager.plugin(plugin_name);
     }
-    return manager.preferredPlugin();
+
+    if (!manager.preferredPluginName().empty()) {
+        return manager.preferredPlugin();
+    }
+
+    return manager.plugin({});
 }
 
 bool shouldRetry(const NetworkResponse& resp, int attempt, int max_retries) {
