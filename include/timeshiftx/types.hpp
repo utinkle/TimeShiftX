@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -69,6 +70,21 @@ struct ServerCredentials {
     std::string server_url;
     std::string username;
     std::string password;
+};
+
+struct ParseWarning {
+    std::size_t position {0};
+    std::string code;
+    std::string message;
+};
+
+struct ParseDiagnostics {
+    std::size_t total_entries {0};
+    std::size_t valid_entries {0};
+    std::size_t skipped_entries {0};
+    std::vector<ParseWarning> warnings;
+
+    bool hasWarnings() const { return !warnings.empty(); }
 };
 
 } // namespace timeshiftx

@@ -17,10 +17,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 option(CHRONOS_ENABLE_STRICT_WARNINGS "Enable strict warnings" ON)
 option(CHRONOS_ENABLE_TESTS "Build unit tests" ON)
 
-# 默认策略：
-# - 桌面端（Windows/macOS）默认 Qt 插件
-# - 服务器/通用 Linux 默认 libcurl 插件
-if(WIN32 OR APPLE)
+if(WIN32 OR APPLE OR ANDROID)
     set(TIMESHIFTX_DEFAULT_NETWORK_BACKEND "qt")
     set(TIMESHIFTX_DEFAULT_ENABLE_QT ON)
     set(TIMESHIFTX_DEFAULT_ENABLE_LIBCURL OFF)

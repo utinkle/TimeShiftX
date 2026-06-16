@@ -25,6 +25,8 @@ public:
 
     std::vector<Channel> getChannels() const override;
 
+    ParseDiagnostics getDiagnostics() const { return diagnostics_; }
+
 private:
     // 安全读取 JSON 字段（兼容 string/number/bool/null）。
     static std::string getStringField(const nlohmann::json& obj, const char* key);
@@ -34,6 +36,7 @@ private:
 
 private:
     std::vector<Channel> channels_;
+    ParseDiagnostics diagnostics_;
 };
 
 } // namespace timeshiftx

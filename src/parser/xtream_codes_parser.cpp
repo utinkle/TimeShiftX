@@ -2,12 +2,22 @@
 #include "timeshiftx/network_service.hpp"
 
 #include <sstream>
+#include <utility>
 
 
 namespace timeshiftx {
 
+namespace {
+
+void addWarning(ParseDiagnostics& diagnostics, std::size_t position, std::string code, std::string message) {
+    diagnostics.warnings.push_back({position, std::move(code), std::move(message)});
+}
+
+}
+
 Error XtreamCodesParser::parse(const std::string& raw_data) {
     channels_.clear();
+    diagnostics_ = {};
 
     if (raw_data.empty()) {
         return {ErrorCode::ERR_PARSE_XC_JSON_FAILED, "Xtream JSON is empty"};
@@ -25,9 +35,13 @@ Error XtreamCodesParser::parse(const std::string& raw_data) {
     }
 
     std::size_t invalid_count = 0;
+    std::size_t index = 0;
     for (const auto& item : root) {
+        ++diagnostics_.total_entries;
+        ++index;
         if (!item.is_object()) {
             ++invalid_count;
+            addWarning(diagnostics_, index, "invalid_stream_entry", "Xtream stream entry is not an object");
             continue;
         }
 
@@ -35,11 +49,14 @@ Error XtreamCodesParser::parse(const std::string& raw_data) {
         std::string err_msg;
         if (!mapStreamToChannel(item, ch, err_msg)) {
             ++invalid_count;
+            addWarning(diagnostics_, index, "invalid_stream_entry", err_msg.empty() ? "Xtream stream entry could not be mapped" : err_msg);
             continue;
         }
 
         channels_.push_back(std::move(ch));
+        ++diagnostics_.valid_entries;
     }
+    diagnostics_.skipped_entries = invalid_count;
 
     if (channels_.empty()) {
         return {ErrorCode::ERR_PARSE_XC_JSON_FAILED,

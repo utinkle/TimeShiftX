@@ -85,13 +85,11 @@ private slots:
 
         std::unordered_map<std::string, std::string> channel_epg_map; // channel.internal_id -> epg_id
         for (const auto& ch : channels) {
-            std::string epg_id = epg.resolveStrictEpgId(ch);
-            if (epg_id.empty()) 
-                epg_id = epg.fuzzyMatchChannelName(ch.epg_match_id);
-
-            if (!epg_id.empty()) {
-                channel_epg_map[ch.internal_id] = epg_id;
-                std::cout << "Channel " << ch.name << " mapped to EPG ID " << epg_id << std::endl;
+            const auto match = epg.resolveChannelEpgId(ch);
+            if (match.matched()) {
+                channel_epg_map[ch.internal_id] = match.epg_id;
+                std::cout << "Channel " << ch.name << " mapped to EPG ID " << match.epg_id
+                          << " confidence=" << match.confidence << std::endl;
             }
         }
 

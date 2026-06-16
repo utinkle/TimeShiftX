@@ -1,11 +1,12 @@
 #include "timeshiftx/epg_manager.hpp"
-#include "pugixml/pugixml.hpp"
 #include "timeshiftx/network_service.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <iterator>
 #include <mutex>
 #include <shared_mutex>
+#include <unordered_map>
 #include <utility>
 
 namespace timeshiftx {
@@ -29,14 +30,158 @@ std::string trim(const std::string& s) {
     return s.substr(l, r - l + 1);
 }
 
+bool isNameBoundary(char c) {
+    return std::isspace(static_cast<unsigned char>(c)) != 0 || c == '>' || c == '/';
+}
+
+std::size_t findTagEnd(const std::string& text, std::size_t open_pos) {
+    char quote = '\0';
+    for (std::size_t i = open_pos; i < text.size(); ++i) {
+        const char c = text[i];
+        if ((c == '"' || c == '\'') && (i == 0 || text[i - 1] != '\\')) {
+            quote = quote == '\0' ? c : (quote == c ? '\0' : quote);
+            continue;
+        }
+        if (c == '>' && quote == '\0') return i;
+    }
+    return std::string::npos;
+}
+
+std::size_t findStartTag(const std::string& text, const std::string& tag_name, std::size_t pos) {
+    const std::string needle = "<" + tag_name;
+    while (true) {
+        const std::size_t found = text.find(needle, pos);
+        if (found == std::string::npos) return std::string::npos;
+        const std::size_t boundary = found + needle.size();
+        if (boundary < text.size() && isNameBoundary(text[boundary])) return found;
+        pos = boundary;
+    }
+}
+
+std::unordered_map<std::string, std::string> parseXmlAttributes(const std::string& tag_text) {
+    std::unordered_map<std::string, std::string> attrs;
+    std::size_t i = tag_text.find_first_of(" \t\r\n");
+    if (i == std::string::npos) return attrs;
+
+    while (i < tag_text.size()) {
+        while (i < tag_text.size() && std::isspace(static_cast<unsigned char>(tag_text[i])) != 0) ++i;
+        if (i >= tag_text.size() || tag_text[i] == '>' || tag_text[i] == '/') break;
+
+        const std::size_t key_start = i;
+        while (i < tag_text.size() && tag_text[i] != '=' && std::isspace(static_cast<unsigned char>(tag_text[i])) == 0 && tag_text[i] != '>' && tag_text[i] != '/') ++i;
+        if (i == key_start) break;
+        std::string key = tag_text.substr(key_start, i - key_start);
+
+        while (i < tag_text.size() && std::isspace(static_cast<unsigned char>(tag_text[i])) != 0) ++i;
+        if (i >= tag_text.size() || tag_text[i] != '=') continue;
+        ++i;
+        while (i < tag_text.size() && std::isspace(static_cast<unsigned char>(tag_text[i])) != 0) ++i;
+        if (i >= tag_text.size()) break;
+
+        std::string value;
+        if (tag_text[i] == '"' || tag_text[i] == '\'') {
+            const char quote = tag_text[i++];
+            const std::size_t value_start = i;
+            while (i < tag_text.size() && tag_text[i] != quote) ++i;
+            value = tag_text.substr(value_start, i - value_start);
+            if (i < tag_text.size()) ++i;
+        } else {
+            const std::size_t value_start = i;
+            while (i < tag_text.size() && std::isspace(static_cast<unsigned char>(tag_text[i])) == 0 && tag_text[i] != '>' && tag_text[i] != '/') ++i;
+            value = tag_text.substr(value_start, i - value_start);
+        }
+
+        attrs[std::move(key)] = value;
+    }
+
+    return attrs;
+}
+
+std::string decodeXmlEntities(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] != '&') {
+            out.push_back(text[i]);
+            continue;
+        }
+
+        const std::size_t semi = text.find(';', i + 1);
+        if (semi == std::string::npos) {
+            out.push_back(text[i]);
+            continue;
+        }
+
+        const std::string entity = text.substr(i + 1, semi - i - 1);
+        if (entity == "amp") out.push_back('&');
+        else if (entity == "lt") out.push_back('<');
+        else if (entity == "gt") out.push_back('>');
+        else if (entity == "quot") out.push_back('"');
+        else if (entity == "apos") out.push_back('\'');
+        else if (!entity.empty() && entity[0] == '#') {
+            try {
+                const int base = entity.size() > 1 && (entity[1] == 'x' || entity[1] == 'X') ? 16 : 10;
+                const std::size_t offset = base == 16 ? 2 : 1;
+                const unsigned long code = std::stoul(entity.substr(offset), nullptr, base);
+                if (code <= 0x7F) {
+                    out.push_back(static_cast<char>(code));
+                } else if (code <= 0x7FF) {
+                    out.push_back(static_cast<char>(0xC0 | (code >> 6)));
+                    out.push_back(static_cast<char>(0x80 | (code & 0x3F)));
+                } else if (code <= 0xFFFF) {
+                    out.push_back(static_cast<char>(0xE0 | (code >> 12)));
+                    out.push_back(static_cast<char>(0x80 | ((code >> 6) & 0x3F)));
+                    out.push_back(static_cast<char>(0x80 | (code & 0x3F)));
+                } else if (code <= 0x10FFFF) {
+                    out.push_back(static_cast<char>(0xF0 | (code >> 18)));
+                    out.push_back(static_cast<char>(0x80 | ((code >> 12) & 0x3F)));
+                    out.push_back(static_cast<char>(0x80 | ((code >> 6) & 0x3F)));
+                    out.push_back(static_cast<char>(0x80 | (code & 0x3F)));
+                } else {
+                    out.append(text.substr(i, semi - i + 1));
+                }
+            } catch (...) {
+                out.append(text.substr(i, semi - i + 1));
+            }
+        } else {
+            out.append(text.substr(i, semi - i + 1));
+        }
+        i = semi;
+    }
+    return out;
+}
+
+std::string normalizeXmlText(const std::string& text) {
+    std::string out;
+    std::size_t pos = 0;
+    while (pos < text.size()) {
+        const std::size_t cdata_start = text.find("<![CDATA[", pos);
+        if (cdata_start == std::string::npos) {
+            out += decodeXmlEntities(text.substr(pos));
+            break;
+        }
+        out += decodeXmlEntities(text.substr(pos, cdata_start - pos));
+        const std::size_t cdata_end = text.find("]]>", cdata_start + 9);
+        if (cdata_end == std::string::npos) {
+            out += text.substr(cdata_start + 9);
+            break;
+        }
+        out += text.substr(cdata_start + 9, cdata_end - cdata_start - 9);
+        pos = cdata_end + 3;
+    }
+    return trim(out);
+}
+
 std::string readAttribute(const std::string& tag_text, const std::string& attr) {
-    const std::string key = attr + "=\"";
-    std::size_t p = tag_text.find(key);
-    if (p == std::string::npos) return {};
-    p += key.size();
-    std::size_t e = tag_text.find('"', p);
-    if (e == std::string::npos) return {};
-    return tag_text.substr(p, e - p);
+    const auto attrs = parseXmlAttributes(tag_text);
+    const auto it = attrs.find(attr);
+    return it == attrs.end() ? std::string{} : decodeXmlEntities(it->second);
+}
+
+void appendUnique(std::vector<std::string>& values, const std::string& value) {
+    if (std::find(values.begin(), values.end(), value) == values.end()) {
+        values.push_back(value);
+    }
 }
 
 } // namespace
@@ -66,18 +211,17 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
         return {ErrorCode::ERR_PARSE_XMLTV_FAILED, "XMLTV content is empty"};
     }
 
-    // 使用 pugixml 进行文档加载与合法性检查。
-    pugi::xml_document doc;
-    auto result = doc.load_string(xml_content.c_str());
-    if (!result) {
-        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, std::string("XMLTV parsing failed: ") + result.description()};
+    const std::size_t tv_start = findStartTag(xml_content, "tv", 0);
+    if (tv_start == std::string::npos || xml_content.find("</tv>", tv_start) == std::string::npos) {
+        return {ErrorCode::ERR_PARSE_XMLTV_FAILED, "XMLTV parsing failed: missing <tv> root"};
     }
 
-    const std::string& raw = doc.raw_text();
+    const std::string& raw = xml_content;
     std::unordered_set<std::string> next_channel_ids;
     std::unordered_map<std::string, std::vector<Programme>> next_timelines;
     std::unordered_map<std::string, std::vector<std::string>> next_display_names;
-    std::unordered_map<std::string, std::string> next_norm_to_id;
+    std::unordered_map<std::string, std::vector<std::string>> next_norm_to_ids;
+    EpgTimelineStats next_timeline_stats;
     std::unordered_set<std::string> filter_snapshot;
     {
         std::shared_lock<std::shared_mutex> lk(rw_mutex_);
@@ -87,9 +231,9 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
     // 解析 channel 块。
     std::size_t pos = 0;
     while (true) {
-        const std::size_t start = raw.find("<channel", pos);
+        const std::size_t start = findStartTag(raw, "channel", pos);
         if (start == std::string::npos) break;
-        const std::size_t open_end = raw.find('>', start);
+        const std::size_t open_end = findTagEnd(raw, start);
         const std::size_t close = raw.find("</channel>", open_end);
         if (open_end == std::string::npos || close == std::string::npos) break;
 
@@ -101,17 +245,17 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
 
             std::size_t dp = 0;
             while (true) {
-                const std::size_t ds = block.find("<display-name", dp);
+                const std::size_t ds = findStartTag(block, "display-name", dp);
                 if (ds == std::string::npos) break;
-                const std::size_t de = block.find('>', ds);
+                const std::size_t de = findTagEnd(block, ds);
                 const std::size_t dc = block.find("</display-name>", de);
                 if (de == std::string::npos || dc == std::string::npos) break;
-                const std::string name = trim(block.substr(de + 1, dc - de - 1));
+                const std::string name = normalizeXmlText(block.substr(de + 1, dc - de - 1));
                 if (!name.empty()) {
                     next_display_names[channel_id].push_back(name);
                     const std::string norm = normalizeChannelName(name);
-                    if (!norm.empty() && next_norm_to_id.find(norm) == next_norm_to_id.end()) {
-                        next_norm_to_id[norm] = channel_id;
+                    if (!norm.empty()) {
+                        appendUnique(next_norm_to_ids[norm], channel_id);
                     }
                 }
                 dp = dc + 15;
@@ -125,9 +269,9 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
     std::size_t programme_count = 0;
     pos = 0;
     while (true) {
-        const std::size_t start = raw.find("<programme", pos);
+        const std::size_t start = findStartTag(raw, "programme", pos);
         if (start == std::string::npos) break;
-        const std::size_t open_end = raw.find('>', start);
+        const std::size_t open_end = findTagEnd(raw, start);
         const std::size_t close = raw.find("</programme>", open_end);
         if (open_end == std::string::npos || close == std::string::npos) break;
 
@@ -163,9 +307,19 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
     for (auto& kv : next_timelines) {
         auto& vec = kv.second;
         std::sort(vec.begin(), vec.end(), [](const Programme& a, const Programme& b) { return a.start_time < b.start_time; });
+        if (!vec.empty()) {
+            if (next_timeline_stats.first_start_time == 0 || vec.front().start_time < next_timeline_stats.first_start_time) {
+                next_timeline_stats.first_start_time = vec.front().start_time;
+            }
+            if (vec.back().end_time > next_timeline_stats.last_end_time) {
+                next_timeline_stats.last_end_time = vec.back().end_time;
+            }
+        }
     }
 
     const std::size_t parsed_channel_count = next_channel_ids.size();
+    next_timeline_stats.channel_count = parsed_channel_count;
+    next_timeline_stats.programme_count = programme_count;
 
     // Double buffering hot update: switch all at once after new data is fully built.
     {
@@ -173,7 +327,8 @@ Error EPGManager::loadXMLTV(const std::string& xml_content) {
         channel_ids_ = std::move(next_channel_ids);
         timelines_ = std::move(next_timelines);
         channel_display_names_ = std::move(next_display_names);
-        normalized_name_to_epg_id_ = std::move(next_norm_to_id);
+        normalized_name_to_epg_ids_ = std::move(next_norm_to_ids);
+        timeline_stats_ = next_timeline_stats;
     }
 
     return {ErrorCode::OK,
@@ -197,11 +352,39 @@ std::vector<Programme> EPGManager::getTimelineForChannel(const std::string& epg_
     std::time_t day_start = timegmPortable(&day_tm);
     const std::time_t day_end = day_start + 24 * 60 * 60;
 
+    auto first_in_day = std::lower_bound(it->second.begin(), it->second.end(), day_start, [](const Programme& programme, std::time_t ts) {
+        return programme.start_time < ts;
+    });
+
     std::vector<Programme> result;
-    for (const auto& p : it->second) {
-        if (p.end_time > day_start && p.start_time < day_end) result.push_back(p);
+    while (first_in_day != it->second.begin()) {
+        auto previous = std::prev(first_in_day);
+        if (previous->end_time <= day_start) break;
+        first_in_day = previous;
+    }
+
+    for (auto p = first_in_day; p != it->second.end() && p->start_time < day_end; ++p) {
+        if (p->end_time > day_start) result.push_back(*p);
     }
     return result;
+}
+
+EpgTimelineStats EPGManager::getTimelineStats() const {
+    std::shared_lock<std::shared_mutex> lk(rw_mutex_);
+    return timeline_stats_;
+}
+
+EpgTimelineStats EPGManager::getTimelineStatsForChannel(const std::string& epg_match_id) const {
+    std::shared_lock<std::shared_mutex> lk(rw_mutex_);
+    EpgTimelineStats stats;
+    auto it = timelines_.find(epg_match_id);
+    if (it == timelines_.end() || it->second.empty()) return stats;
+
+    stats.channel_count = 1;
+    stats.programme_count = it->second.size();
+    stats.first_start_time = it->second.front().start_time;
+    stats.last_end_time = it->second.back().end_time;
+    return stats;
 }
 
 std::string EPGManager::resolveStrictEpgId(const Channel& channel) const {
@@ -210,12 +393,36 @@ std::string EPGManager::resolveStrictEpgId(const Channel& channel) const {
     return channel_ids_.find(channel.epg_match_id) != channel_ids_.end() ? channel.epg_match_id : std::string{};
 }
 
+EpgMatchResult EPGManager::resolveChannelEpgId(const Channel& channel) const {
+    std::shared_lock<std::shared_mutex> lk(rw_mutex_);
+    if (!channel.epg_match_id.empty() && channel_ids_.find(channel.epg_match_id) != channel_ids_.end()) {
+        return {channel.epg_match_id, EpgMatchMethod::StrictId, 100, channel.epg_match_id};
+    }
+
+    EpgMatchResult match = fuzzyMatchChannelNameLocked(channel.epg_match_id, EpgMatchMethod::FuzzyEpgMatchId, 86);
+    if (match.matched()) return match;
+
+    return fuzzyMatchChannelNameLocked(channel.name, EpgMatchMethod::FuzzyName, 82);
+}
+
 std::string EPGManager::fuzzyMatchChannelName(const std::string& raw_name) const {
     std::shared_lock<std::shared_mutex> lk(rw_mutex_);
+    return fuzzyMatchChannelNameLocked(raw_name, EpgMatchMethod::FuzzyName, 82).epg_id;
+}
+
+EpgMatchResult EPGManager::fuzzyMatchChannelNameLocked(const std::string& raw_name, EpgMatchMethod method, int base_confidence) const {
     const std::string norm = normalizeChannelName(raw_name);
     if (norm.empty()) return {};
-    auto it = normalized_name_to_epg_id_.find(raw_name);
-    return it == normalized_name_to_epg_id_.end() ? std::string{} : it->second;
+
+    const auto it = normalized_name_to_epg_ids_.find(norm);
+    if (it == normalized_name_to_epg_ids_.end() || it->second.empty()) return {};
+
+    int confidence = base_confidence;
+    if (it->second.size() > 1) {
+        confidence = std::max(50, base_confidence - 20);
+    }
+
+    return {it->second.front(), method, confidence, raw_name};
 }
 
 std::time_t EPGManager::parseXmltvTimeToUtc(const std::string& xmltv_time) {
@@ -248,27 +455,17 @@ std::time_t EPGManager::parseXmltvTimeToUtc(const std::string& xmltv_time) {
 }
 
 std::string EPGManager::extractTagText(const std::string& block, const std::string& tag_name) {
-    const std::string open1 = "<" + tag_name + ">";
-    const std::string close = "</" + tag_name + ">";
+    const std::size_t start = findStartTag(block, tag_name, 0);
+    if (start == std::string::npos) return {};
 
-    std::size_t s = block.find(open1);
-    std::size_t off = open1.size();
-    if (s == std::string::npos) {
-        const std::string open2 = "<" + tag_name + " ";
-        s = block.find(open2);
-        if (s == std::string::npos) return {};
-        s = block.find('>', s);
-        if (s == std::string::npos) return {};
-        ++s;
-        off = 0;
-    } else {
-        s += off;
-        off = 0;
-    }
+    const std::size_t open_end = findTagEnd(block, start);
+    if (open_end == std::string::npos) return {};
 
-    const std::size_t e = block.find(close, s + off);
-    if (e == std::string::npos) return {};
-    return trim(block.substr(s + off, e - s - off));
+    const std::string close_tag = "</" + tag_name + ">";
+    const std::size_t close = block.find(close_tag, open_end + 1);
+    if (close == std::string::npos) return {};
+
+    return normalizeXmlText(block.substr(open_end + 1, close - open_end - 1));
 }
 
 std::string EPGManager::normalizeChannelName(const std::string& raw_name) {
